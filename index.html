@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BlenderLab — Python scripts to 3D models</title>
+  <meta name="description" content="Write a Blender Python script, queue it on headless Blender, download production 3D models.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23ea7600'/%3E%3Cpath d='M16 7l7 4v8l-7 4-7-4v-8z' fill='none' stroke='%231d1002' stroke-width='2.4' stroke-linejoin='round'/%3E%3C/svg%3E">
+</head>
+<body>
+  <div class="shell">
+    <header class="nav">
+      <a class="brand" href="index.html" aria-label="BlenderLab home">
+        <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#ea7600"/><path d="M16 7l7 4v8l-7 4-7-4v-8z" fill="none" stroke="#1d1002" stroke-width="2.4" stroke-linejoin="round"/></svg>
+        BlenderLab <small>mini</small>
+      </a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="index.html" aria-current="page">Workbench</a>
+        <a href="guide.html">Script guide</a>
+      </nav>
+      <div class="nav-right">
+        <span class="runner" id="runnerPill" title="Render worker status"><span class="dot"></span><span id="runnerText">worker…</span></span>
+      </div>
+    </header>
+
+    <section class="hero">
+      <div class="eyebrow">BLENDER 5.1 &middot; HEADLESS RENDER PIPELINE</div>
+      <h1>Turn Python scripts into production 3D assets.</h1>
+      <p>Write <code style="font-family:var(--mono);font-size:.9em">bpy</code> geometry code, pick a quality preset and output format. A headless Blender worker renders it with studio lighting and hands back downloadable models.</p>
+      <div class="hero-meta">
+        <span class="meta-tag"><b>GLB</b> &middot; FBX &middot; STL &middot; USD</span>
+        <span class="meta-tag">EEVEE &middot; HDRI &middot; PBR</span>
+        <span class="meta-tag">queue &rarr; render &rarr; download</span>
+      </div>
+    </section>
+
+    <main class="workbench">
+      <section class="panel" aria-label="Script editor">
+        <div class="panel-head">
+          <span class="file">script.py</span>
+          <span class="spacer"></span>
+          <button class="mini-btn" id="copyBtn" type="button">copy</button>
+        </div>
+        <textarea id="script" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+        <div class="editor-foot">
+          <span>geometry only — lights, camera &amp; export are automatic</span>
+          <span><kbd>&#8984;</kbd> + <kbd>&#9166;</kbd> to submit</span>
+        </div>
+      </section>
+
+      <aside class="rail">
+        <div class="panel">
+          <div class="field">
+            <p class="field-label">Quality preset</p>
+            <div class="seg" id="qualityRow" role="group" aria-label="Quality preset">
+              <button class="chip" data-q="draft" type="button">Draft</button>
+              <button class="chip on" data-q="standard" type="button">Standard</button>
+              <button class="chip" data-q="cinematic" type="button">Cinematic</button>
+            </div>
+            <p class="quality-note" id="qualityNote"><b>Standard</b> — HDRI + PBR clearcoat + bloom, ~90s</p>
+          </div>
+          <div class="field">
+            <p class="field-label">Output formats</p>
+            <div id="formatRow">
+              <button class="chip on" data-f="glb" type="button"><span class="ext">GLB</span><span class="desc">Web &amp; real-time, Draco compressed</span><span class="tick">&#10003;</span></button>
+              <button class="chip" data-f="fbx" type="button"><span class="ext">FBX</span><span class="desc">DCC interchange standard</span><span class="tick">&#10003;</span></button>
+              <button class="chip" data-f="stl" type="button"><span class="ext">STL</span><span class="desc">3D printing</span><span class="tick">&#10003;</span></button>
+              <button class="chip" data-f="usd" type="button"><span class="ext">USD</span><span class="desc">Universal scene description</span><span class="tick">&#10003;</span></button>
+            </div>
+          </div>
+          <div class="field">
+            <p class="rule-note">Scripts must create <b>at least one mesh</b>. Scene setup, lighting and export are handled for you — <a href="guide.html">read the rules</a>.</p>
+          </div>
+          <div class="submit-zone">
+            <button id="submitBtn" type="button">Render model</button>
+            <div class="msg" id="msg" role="alert"></div>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <section class="steps" aria-label="How it works">
+      <div class="step">
+        <span class="n">01</span>
+        <h3>Write geometry</h3>
+        <p>Any <code>bpy</code> mesh code — primitives, modifiers, materials. See the <a href="guide.html" style="color:var(--accent-hover)">script guide</a> for what passes and what fails.</p>
+      </div>
+      <div class="step">
+        <span class="n">02</span>
+        <h3>Queue &amp; render</h3>
+        <p>Your job lands in Firestore as <code>queued</code>. The worker picks it up, injects studio lighting and runs headless Blender.</p>
+      </div>
+      <div class="step">
+        <span class="n">03</span>
+        <h3>Inspect &amp; download</h3>
+        <p>Status flips to <code>done</code> with a live 3D preview and signed R2 download links for every format.</p>
+      </div>
+    </section>
+
+    <footer>
+      <span>BlenderLab mini — coursework build</span>
+      <span class="spacer"></span>
+      <span class="health" id="apiHealth"><span class="dot"></span><span>api</span></span>
+      <a href="guide.html">Script guide</a>
+    </footer>
+  </div>
+  <script src="config.js"></script>
+  <script src="samples.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

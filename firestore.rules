@@ -1,0 +1,17 @@
+// Firestore rules for BlenderLab mini.
+// Demo: open (college viva, local testing). Lock down after presentation.
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /jobs/{jobId} {
+      allow read: if true;
+      // ponytail: tighten to validated writes when frontend talks directly.
+      // Browser goes through server.js here, so writer is Admin SDK (bypasses rules).
+      allow write: if true;
+    }
+    match /system/{doc} {
+      allow read: if true;
+      allow write: if true;
+    }
+  }
+}

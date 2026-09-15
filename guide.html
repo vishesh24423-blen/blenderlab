@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Script guide — BlenderLab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23ea7600'/%3E%3Cpath d='M16 7l7 4v8l-7 4-7-4v-8z' fill='none' stroke='%231d1002' stroke-width='2.4' stroke-linejoin='round'/%3E%3C/svg%3E">
+</head>
+<body>
+  <div class="shell">
+    <header class="nav">
+      <a class="brand" href="index.html" aria-label="BlenderLab home">
+        <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#ea7600"/><path d="M16 7l7 4v8l-7 4-7-4v-8z" fill="none" stroke="#1d1002" stroke-width="2.4" stroke-linejoin="round"/></svg>
+        BlenderLab <small>mini</small>
+      </a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="index.html">Workbench</a>
+        <a href="guide.html" aria-current="page">Script guide</a>
+      </nav>
+      <div class="nav-right"></div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="eyebrow">USER DOCUMENTATION</div>
+        <h1>Write scripts the worker can render.</h1>
+        <p>One rule: your script creates <b>geometry only</b>. Scene cleanup, studio lighting, camera framing and file export happen automatically around it.</p>
+      </section>
+
+      <div class="guide-grid">
+        <section class="rule-card do" aria-label="What to include">
+          <h3>Include</h3>
+          <ul>
+            <li><code>import bpy</code> plus <code>math</code> / <code>mathutils</code> if needed</li>
+            <li>At least one <code>MESH</code> — primitives, modifiers, <code>from_pydata</code></li>
+            <li>Descriptive object names, e.g. <code>cube.name = "Bolt"</code></li>
+            <li><code>shade_smooth()</code> on finished meshes</li>
+            <li>Principled BSDF materials for colour and roughness</li>
+            <li><code>print()</code> lines — they land in the worker log</li>
+          </ul>
+        </section>
+        <section class="rule-card dont" aria-label="What to leave out">
+          <h3>Leave out</h3>
+          <ul>
+            <li>Scene clearing — the worker wipes the scene first</li>
+            <li>Collection setup — handled before your code runs</li>
+            <li><code>export_scene.*</code> — export is automatic per format</li>
+            <li>Render engine / sample settings — set by the quality preset</li>
+            <li>File, network or subprocess access — blocked, job fails</li>
+            <li><code>sys.exit()</code> and infinite loops — 5 min timeout, then failed</li>
+          </ul>
+        </section>
+      </div>
+
+      <h2 class="section-title">Copy-paste examples</h2>
+      <p class="section-sub">Each one is a complete, submittable script. Start here, then improvise.</p>
+      <div id="examples"></div>
+
+      <h2 class="section-title">When a job fails</h2>
+      <p class="section-sub">Match the worker message to the cause.</p>
+      <div class="guide-grid" style="margin-top:20px">
+        <section class="rule-card"><h3>No mesh objects created</h3><ul><li>Script ran but produced no <code>MESH</code> — check primitive calls and typos</li></ul></section>
+        <section class="rule-card"><h3>USER_SCRIPT_ERROR</h3><ul><li>Python exception in your code — the traceback points at your line</li></ul></section>
+        <section class="rule-card"><h3>EXPORT_ERROR</h3><ul><li>Geometry exists but export crashed — try <code>draft</code> quality to isolate</li></ul></section>
+        <section class="rule-card"><h3>Stuck on processing</h3><ul><li>Usually a long loop or heavy subdivisions — simplify and resubmit</li></ul></section>
+      </div>
+    </main>
+
+    <footer>
+      <span>BlenderLab mini — coursework build</span>
+      <span class="spacer"></span>
+      <a href="index.html">Workbench</a>
+    </footer>
+  </div>
+  <script src="samples.js"></script>
+  <script>
+    // Render examples from samples.js — no framework needed.
+    const box = document.getElementById("examples");
+    GUIDE_SAMPLES.forEach(function (s, i) {
+      const d = document.createElement("div");
+      d.className = "panel example";
+      const head = document.createElement("div");
+      head.className = "panel-head";
+      const num = document.createElement("span");
+      num.className = "file";
+      num.textContent = "0" + (i + 1) + " — " + s.name;
+      const sp = document.createElement("span");
+      sp.className = "spacer";
+      const btn = document.createElement("button");
+      btn.className = "mini-btn";
+      btn.type = "button";
+      btn.textContent = "copy";
+      btn.onclick = function () {
+        navigator.clipboard.writeText(s.code);
+        btn.textContent = "copied";
+        setTimeout(function () { btn.textContent = "copy"; }, 1200);
+      };
+      head.appendChild(num); head.appendChild(sp); head.appendChild(btn);
+      const body = document.createElement("div");
+      body.className = "field";
+      const p = document.createElement("p");
+      p.style.cssText = "font-size:13px;color:var(--text-2);margin-bottom:10px";
+      p.textContent = s.desc;
+      const pre = document.createElement("pre");
+      const code = document.createElement("code");
+      code.textContent = s.code;
+      pre.appendChild(code);
+      body.appendChild(p); body.appendChild(pre);
+      d.appendChild(head); d.appendChild(body);
+      box.appendChild(d);
+    });
+  </script>
+</body>
+</html>
