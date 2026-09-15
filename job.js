@@ -77,8 +77,11 @@ if (!id) {
     let job;
     try {
       const r = await fetch(API + "/api/job?id=" + encodeURIComponent(id));
-      const body = await r.json();
-      if (!r.ok) throw new Error(body.error || "status " + r.status);
+      const text = await r.text();
+      let body = null;
+      try { body = text ? JSON.parse(text) : null; } catch { body = null; }
+      if (!body) throw new Error("No API at " + API + " (HTTP " + r.status + "). Open the app via `npm start` at http://localhost:3000 — Live Server and file:// have no backend.");
+      if (!r.ok) throw new Error(body.error || ("Request failed (HTTP " + r.status + ")"));
       job = body;
     } catch (e) {
       fail(e.message || "Backend unreachable.");

@@ -1,7 +1,8 @@
 // GET /api/job?id=... — status polling without exposing Firebase keys to the browser.
-const { getDb } = require("./_db");
+const { getDb, cors } = require("./_db");
 
 module.exports = async (req, res) => {
+  if (cors(req, res)) return;
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
   try {
     const id = req.query.id;

@@ -50,7 +50,38 @@ app.post("/api/submit-job", async (req, res) => {
     const jobId = jobRef.id;
     console.log(`Job created: ${jobId} (${formats.join(", ")})`);
 
-    // Runner lock (same transaction as reference)
+    // Runner lock: Firestore is a hint, GitHub runs are the truth.
+    // A dead worker can leave status=active behind; verify before trusting it.
+    const { GITHUB_TOKEN, GITHUB_OWNER, GITHUB_REPO, GITHUB_WORKFLOW = "blender-runner.yml" } = process.env;
+    const ghHeaders = GITHUB_TOKEN ? { Authorization: `Bearer ${GITHUB_TOKEN}`, Accept: "application/vnd.github+json" } : null;
+
+    // true = a runner workflow is really alive; false = safe to dispatch; null = couldn't check
+    const githubBusy = async () => {
+      if (!ghHeaders || !GITHUB_OWNER || !GITHUB_REPO) return null;
+      try {
+        const r = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/workflows/${GITHUB_WORKFLOW}/runs?status=queued,in_progress&per_page=5`, { headers: ghHeaders });
+        if (!r.ok) return null;
+        const d = await r.json();
+        return (d.workflow_runs || []).some((x) => x.status === "queued" || x.status === "in_progress");
+      } catch (e) { console.warn("GitHub runs check failed:", e.message); return null; }
+    };
+
+    const dispatchRunner = async (reason) => {
+      if (!ghHeaders || !GITHUB_OWNER || !GITHUB_REPO) {
+        console.warn("GitHub env missing — job queued but runner NOT triggered (set GITHUB_TOKEN/OWNER/REPO).");
+        return;
+      }
+      console.log(`Dispatching runner (${reason})...`);
+      const runnerRef = database.collection("system").doc("runner");
+      const d = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/workflows/${GITHUB_WORKFLOW}/dispatches`, {
+        method: "POST",
+        headers: { ...ghHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ ref: "main" }),
+      });
+      if (d.ok) console.log(`Workflow dispatched for ${jobId}`);
+      else { console.error("Dispatch failed:", d.status); await runnerRef.update({ status: "inactive" }); }
+    };
+
     try {
       const runnerRef = database.collection("system").doc("runner");
       let shouldTrigger = false;
@@ -65,33 +96,26 @@ app.post("/api/submit-job", async (req, res) => {
       });
 
       if (shouldTrigger) {
-        const { GITHUB_TOKEN, GITHUB_OWNER, GITHUB_REPO, GITHUB_WORKFLOW = "blender-runner.yml" } = process.env;
-        if (!GITHUB_TOKEN || !GITHUB_OWNER || !GITHUB_REPO) {
-          console.warn("GitHub env missing — job queued but runner NOT triggered (set GITHUB_TOKEN/OWNER/REPO).");
+        const busy = await githubBusy();
+        if (busy) {
+          await runnerRef.set({ status: "active", lastActive: Date.now() }, { merge: true });
+          console.log("Runner already active — job queued.");
         } else {
-          const hdr = { Authorization: `Bearer ${GITHUB_TOKEN}`, Accept: "application/vnd.github+json" };
-          let busy = false;
-          try {
-            const r = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/workflows/${GITHUB_WORKFLOW}/runs?status=queued,in_progress&per_page=5`, { headers: hdr });
-            if (r.ok) {
-              const d = await r.json();
-              busy = (d.workflow_runs || []).some((x) => x.status === "queued" || x.status === "in_progress");
-            }
-          } catch (e) { console.warn("GitHub runs check failed, dispatching anyway:", e.message); }
-          if (busy) {
-            await runnerRef.set({ status: "active", lastActive: Date.now() }, { merge: true });
-            console.log("Runner already active — job queued.");
-          } else {
-            const d = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/workflows/${GITHUB_WORKFLOW}/dispatches`, {
-              method: "POST",
-              headers: { ...hdr, "Content-Type": "application/json" },
-              body: JSON.stringify({ ref: "main" }),
-            });
-            if (d.ok) console.log(`Workflow dispatched for ${jobId}`);
-            else { console.error("Dispatch failed:", d.status); await runnerRef.update({ status: "inactive" }); }
-          }
+          await dispatchRunner(busy === false ? "no live workflow found" : "could not verify, dispatching anyway");
         }
-      } else console.log(`Job ${jobId} queued — runner already ACTIVE.`);
+      } else {
+        // Lock claims active — confirm a workflow is really alive first.
+        const busy = await githubBusy();
+        if (busy === false) {
+          console.log("Stale runner lock (no live workflow) — resetting and dispatching.");
+          await runnerRef.set({ status: "active", startedAt: Date.now(), lastActive: Date.now(), triggeredJobId: jobId }, { merge: true });
+          await dispatchRunner("stale lock reset");
+        } else if (busy === null) {
+          console.log(`Job ${jobId} queued — runner lock active (GitHub unverifiable).`);
+        } else {
+          console.log(`Job ${jobId} queued — runner already ACTIVE.`);
+        }
+      }
     } catch (e) { console.error("Runner check failed (job still queued):", e.message); }
 
     res.status(201).json({ jobId });

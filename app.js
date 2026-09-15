@@ -73,8 +73,14 @@ $("submitBtn").onclick = async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ script, formats: [...formats], quality })
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Submit failed");
+    // Read text first: a proxy/timeout can return an empty body, and res.json()
+    // would throw "Unexpected end of JSON input" hiding the real HTTP status.
+    const text = await res.text();
+    let data = null;
+    try { data = text ? JSON.parse(text) : null; } catch { data = null; }
+    if (!data) throw new Error("No API at " + API + " (HTTP " + res.status + "). Open the app via `npm start` at http://localhost:3000 — Live Server and file:// have no backend.");
+    if (!res.ok) throw new Error(data.error || ("Request failed (HTTP " + res.status + ")"));
+    if (!data.jobId) throw new Error("Bad response from server (HTTP " + res.status + "). Check server logs.");
     try {
       localStorage.setItem("bl_job_" + data.jobId, JSON.stringify({ script, formats: [...formats], quality, t: Date.now() }));
     } catch { /* private mode — job page still works without cached script */ }
